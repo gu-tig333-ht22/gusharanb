@@ -1,115 +1,344 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+//Design:
+// duger, fokusera på funktionalitet
+
+// funktionalitet:
+// verkar uppfylla kraven, fokusera på nätverk.
+
+// Nätverk http:
+// kan nu lägga till tasks med http POST där jag gjorde: boolean.toString()
+// kan inte hämta specifika värden från listan, mycket märkligt: fixa nästa vecka(40)
+// kan inte ändra boolean PUT: fixa detta nästa vecka(40)
+// kan inte DELETE en task ännu från listan: fixa detta nästa vecka(40)
+// kan inte initiera listan vid appstart: fixa detta nästa vecka(40)
 
 void main() {
-  runApp(const MyApp());
+  var state = MyState();
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => state,
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
-
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: "Todo",
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors.yellow,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: CardsListView(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({Key? key, required this.title}) : super(key: key);
+//model.dart
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
+class TaskCard {
+  String title;
+  bool done = false;
+  TaskCard({required this.title, required this.done});
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class MyState extends ChangeNotifier {
+  List<TaskCard> _list = [];
+  String _filterBy = "all";
+  List<TaskCard> get list => _list;
+  String get filterBy => _filterBy;
+  bool get done => done;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  void addCard(TaskCard card) {
+    _list.add(card);
+    notifyListeners();
   }
+
+  void removeCard(TaskCard card) {
+    _list.remove(card);
+    notifyListeners();
+  }
+
+  void checkboxChanged(bool? value, TaskCard card) {
+    card.done = !card.done;
+    notifyListeners();
+  }
+
+  void setFilterBy(String filterBy) {
+    this._filterBy = filterBy;
+    notifyListeners();
+  }
+}
+
+//task_card_widget.dart
+
+class TaskCardWidget extends StatelessWidget {
+  final TaskCard card;
+  TaskCardWidget(this.card);
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
+    return Container(
+      height: 200,
+      width: 300,
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Text("Here you can add a task you wish to complete"),
+      ),
+    );
+  }
+}
+
+// create_task.dart
+
+class CreateTask extends StatefulWidget {
+  final TaskCard card;
+  CreateTask(this.card);
+
+  @override
+  State<StatefulWidget> createState() {
+    return CreateTaskState(card);
+  }
+}
+
+@override
+class CreateTaskState extends State<CreateTask> {
+  late String title;
+  late bool done;
+
+  late TextEditingController textEditingController;
+  postData() async {
+    var response = await http.post(
+        Uri.parse(
+            "https://todoapp-api.apps.k8s.gu.se/todos?key=d56fadd2-8d98-4980-befa-7361dabffaff"),
+        headers: {
+          "accept": "application/json",
+          "content-type": "application/json"
+        },
+        body: json.encode({"title": title, "done": done.toString()}));
+    return response.body;
+  }
+
+  CreateTaskState(TaskCard card) {
+    this.title = card.title;
+    this.done = card.done;
+    this.textEditingController = TextEditingController(text: card.title);
+    textEditingController.addListener(() {
+      setState(() {
+        title = textEditingController.text;
+      });
+    });
+  }
+
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: Text("Create Task"),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
+      body: SingleChildScrollView(
         child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
+          children: [
+            TaskCardWidget(TaskCard(title: this.title, done: this.done)),
+            TextField(
+              controller: textEditingController,
+              decoration: InputDecoration(
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                hintText: "Enter a task",
+              ),
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
+            SizedBox(height: 12),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, TaskCard(title: title, done: done));
+                postData();
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.purple,
+                backgroundColor: Colors.amber,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text("Save"),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
+
+//CardsListView.dart
+
+class CardsListView extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("My tasks"),
+        actions: [
+          ElevatedButton(
+              onPressed: () {
+                Navigator.push(context,
+                    MaterialPageRoute(builder: ((context) => ApiTest())));
+              },
+              child: Text("API TEST")),
+          SizedBox(width: 40),
+          PopupMenuButton(
+              onSelected: (value) {
+                Provider.of<MyState>(context, listen: false).setFilterBy(value);
+              },
+              itemBuilder: (context) => [
+                    PopupMenuItem(
+                      child: Text("all"),
+                      value: "all",
+                    ),
+                    PopupMenuItem(
+                      child: Text("done"),
+                      value: "done",
+                    ),
+                    PopupMenuItem(
+                      child: Text("undone"),
+                      value: "undone",
+                    ),
+                  ])
+        ],
+      ),
+      body: Consumer<MyState>(
+        builder: (context, state, child) =>
+            CardsList(_filterList(state.list, state.filterBy)),
+      ),
+      floatingActionButton: FloatingActionButton(
+        child: Icon(Icons.add),
+        onPressed: () async {
+          var newTask = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => CreateTask(TaskCard(
+                        title: "",
+                        done: false,
+                      ))));
+          Provider.of<MyState>(context, listen: false).addCard(newTask);
+        },
+      ),
+    );
+  }
+
+  List<TaskCard> _filterList(list, filterBy) {
+    if (filterBy == "all") return list;
+    if (filterBy == "done")
+      return list.where((item) => item.done == true).toList();
+    if (filterBy == "undone")
+      return list.where((item) => item.done == false).toList();
+    return list;
+  }
+}
+
+//CardsList.dart
+class CardsList extends StatelessWidget {
+  final List<TaskCard> list;
+
+  CardsList(this.list);
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+        children: list.map((card) => _cardItem(context, card)).toList());
+  }
+
+  Widget _cardItem(context, card) {
+    return Padding(
+        padding: const EdgeInsets.all(2.0),
+        child: Card(
+            child: ListTile(
+          title: Text(
+            card.title,
+            style: TextStyle(
+                decoration: card.done
+                    ? TextDecoration.lineThrough
+                    : TextDecoration.none),
+            textAlign: TextAlign.start,
+          ),
+          leading: IconButton(
+              alignment: Alignment.centerLeft,
+              onPressed: () {
+                var state = Provider.of<MyState>(context, listen: false);
+                state.checkboxChanged(card.done, card);
+              },
+              icon: card.done
+                  ? Icon(Icons.check_box_outlined)
+                  : Icon(Icons.check_box_outline_blank)),
+          trailing: IconButton(
+              onPressed: () {
+                var state = Provider.of<MyState>(context, listen: false);
+                state.removeCard(card);
+              },
+              icon: Icon(Icons.delete_forever)),
+        )));
+  }
+}
+
+//internetFetcher.dart
+
+class InternetFetcher {
+  static Future<String> fetchTitle() async {
+    http.Response response = await http.get(Uri.parse(
+        "https://todoapp-api.apps.k8s.gu.se/todos?key=d56fadd2-8d98-4980-befa-7361dabffaff"));
+    return response.body;
+  }
+}
+
+//api_test.dart
+
+class ApiTest extends StatefulWidget {
+  @override
+  State<ApiTest> createState() => _ApiTestState();
+}
+
+class _ApiTestState extends State<ApiTest> {
+  String title = "title";
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("API TEST"),
+      ),
+      body: Column(
+        children: [
+          Center(child: _displayGetList()),
+        ],
+      ),
+    );
+  }
+
+  Widget _displayGetList() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(title),
+        ElevatedButton(
+            onPressed: () {
+              _doStuff();
+            },
+            child: Text("Test GET list")),
+      ],
+    );
+  }
+
+  void _doStuff() async {
+    var result = await InternetFetcher.fetchTitle();
+    setState(() {
+      title = result;
+    });
+  }
+}
+
+//API KEY: 9c0f39c6-e60b-44fd-bdb6-8c23aacba29f
